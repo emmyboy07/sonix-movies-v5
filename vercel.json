@@ -8,24 +8,16 @@
   ],
   "routes": [
     {
-      "src": "/proxy-sub",
-      "dest": "/api/player.js"
+      "src": "/player",
+      "dest": "/api/player"
     },
     {
-      "src": "/all/player/(.*)",
-      "dest": "/api/player.js"
-    },
-    {
-      "src": "/movie/(\\d+)",
-      "dest": "/api/player.js"
-    },
-    {
-      "src": "/tv/(\\d+)/(\\d+)/(\\d+)",
-      "dest": "/api/player.js"
+      "src": "/player/(.*)",
+      "dest": "/api/player"
     },
     {
       "src": "/(.*)",
-      "dest": "/api/player.js"
+      "dest": "/public/$1"
     }
   ]
 }

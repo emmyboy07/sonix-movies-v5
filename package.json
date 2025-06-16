@@ -1,7 +1,6 @@
 {
   "name": "vercel-player-api",
   "version": "1.0.0",
-  "type": "module",
   "main": "api/player.js",
   "scripts": {
     "start": "vercel dev"

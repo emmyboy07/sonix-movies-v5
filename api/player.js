@@ -1,8 +1,10 @@
-const axios = require('axios');
-const fs = require('fs');
-const path = require('path');
+// /api/player.js
+import axios from 'axios';
+import fs from 'fs/promises';
+import path from 'path';
+import { fileURLToPath } from 'url';
 
-const UI_TOKEN = 'eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9.eyJpYXQiOjE3NDk5OTgyNTQsIm5iZiI6MTc0OTk5ODI1NCwiZXhwIjoxNzgxMTAyMjc0LCJkYXRhIjp7InVpZCI6ODI2NDQ4LCJ0b2tlbiI6IjZlNzYxZTliNjkzZGQzYjgzOTY4NTBhMDhhMWI2ZWRkIn19.c19APBVLapkCwg4xsxA0issOlMCapTvc3_jbxCZsoKQ';
+const UI_TOKEN = 'eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9.eyJpYXQiOjE3NDk5OTgyNTQsIm5iZiI6MTc0OTk5ODI1NCwiZXhwIjoxNzgxMTAyMjc0LCJkYXRhIjp7InVpZCI6ODI2NDQ4LCJ0b2tlbiI6IjZlNzYxZTliNjkzZGQzYjgzOTY4NTBhMDhhMWI2ZWRkIn19.c19APBVLapkCwg4xsxA0issOlMCapTvc3_jbxCZsoKQ'; // truncated
 
 function getBaseUrl(type) {
   switch (type) {
@@ -22,14 +24,13 @@ function getHeaders(type) {
     'Accept-Encoding': 'gzip, deflate, br, zstd',
     'Accept-Language': 'en-US,en;q=0.9',
     'Connection': 'keep-alive',
-    'User-Agent': 'Mozilla/5.0 (Linux; Android 6.0; Nexus 5 Build/MRA58N) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/137.0.0.0 Mobile Safari/537.36',
+    'User-Agent': 'Mozilla/5.0 (Linux; Android 6.0...) Chrome/137.0.0.0',
     ...(type === 'cosmic' && { 'ui-token': UI_TOKEN }),
   };
 }
 
 function extractStreamAndSubtitles(type, data) {
-  let streams = [];
-  let subtitles = [];
+  let streams = [], subtitles = [];
   if ((type === 'meepet' || type === 'clumsy') && Array.isArray(data.streams)) {
     streams = data.streams.map(s => ({
       url: type === 'meepet'
@@ -38,7 +39,7 @@ function extractStreamAndSubtitles(type, data) {
       label: s.resolutions || s.quality || s.format || 'Auto'
     }));
     const best = data.streams.reduce((a, b) => (parseInt(b.resolutions || 0) > parseInt(a.resolutions || 0) ? b : a), data.streams[0]);
-    subtitles = best && best.subtitles ? best.subtitles : [];
+    subtitles = best?.subtitles || [];
   } else if (type === 'cosmic' && Array.isArray(data.streams)) {
     streams = data.streams.map(s => ({
       url: s.url,
@@ -50,15 +51,8 @@ function extractStreamAndSubtitles(type, data) {
 }
 
 function pickDefaultStream(streams) {
-  const find = (label) => streams.find(s =>
-    (s.label || s.quality || '').toString().includes(label)
-  );
-  return (
-    find('720') ||
-    find('1080') ||
-    find('480') ||
-    streams[0]
-  );
+  const find = (label) => streams.find(s => (s.label || '').toString().includes(label));
+  return find('720') || find('1080') || find('480') || streams[0];
 }
 
 function injectPlayerVars(html, streams, subtitles, poster) {
@@ -68,64 +62,64 @@ function injectPlayerVars(html, streams, subtitles, poster) {
     <script>
       window.__STREAMS__ = ${JSON.stringify(streams)};
       window.__SUBTITLES__ = ${JSON.stringify(subtitles)};
-      window.__POSTER__ = ${JSON.stringify(poster || "")};
+      window.__POSTER__ = ${JSON.stringify(poster || '')};
       window.__DEFAULT_STREAM_INDEX__ = ${defaultIndex};
     </script>
   `;
-  return html.includes('<head>')
-    ? html.replace('<head>', `<head>\n${inject}`)
-    : inject + html;
+  return html.includes('<head>') ? html.replace('<head>', `<head>\n${inject}`) : inject + html;
 }
 
-module.exports = async function handler(req, res) {
-  const { method, url, query } = req;
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
-  const urlParts = url.split('/').filter(Boolean).slice(1); // skip /api
-  const [route, type, tmdbId, season, episode] = urlParts;
+export default async function handler(req, res) {
+  const { url, query } = req;
+  const { tmdbId, season, episode } = query;
+  const pathname = url.split('?')[0];
+  const isTV = pathname.includes('/player/') && season && episode;
+  const types = ['meepet', 'clumsy', 'cosmic'];
 
-  const indexPath = path.join(__dirname, 'index.html');
-  let indexHtml = '';
-
+  // Read player HTML
+  let indexHtml;
   try {
-    indexHtml = fs.readFileSync(indexPath, 'utf8');
+    indexHtml = await fs.readFile(path.join(__dirname, '../public/index.html'), 'utf-8');
   } catch {
     return res.status(500).send('Player template not found.');
   }
 
+  // Get TMDB Poster
   let poster = "";
-
   try {
-    const tmdbType = season && episode ? 'tv' : 'movie';
-    const tmdbRes = await axios.get(`https://api.themoviedb.org/3/${tmdbType}/${tmdbId}?api_key=1e2d76e7c45818ed61645cb647981e5c`);
+    const tmdbUrl = isTV
+      ? `https://api.themoviedb.org/3/tv/${tmdbId}?api_key=1e2d76e7c45818ed61645cb647981e5c`
+      : `https://api.themoviedb.org/3/movie/${tmdbId}?api_key=1e2d76e7c45818ed61645cb647981e5c`;
+    const tmdbRes = await axios.get(tmdbUrl);
     if (tmdbRes.data?.poster_path) {
       poster = `https://image.tmdb.org/t/p/w780${tmdbRes.data.poster_path}`;
     }
   } catch {}
 
-  const types = ['meepet', 'clumsy', 'cosmic'];
-  for (const t of types) {
-    const baseUrl = getBaseUrl(t);
-    const mediaUrl = season && episode
-      ? `${baseUrl}/${tmdbId}/${season}/${episode}`
-      : `${baseUrl}/${tmdbId}`;
+  for (const type of types) {
     try {
-      const response = await axios.get(mediaUrl, {
-        headers: getHeaders(t),
+      const baseUrl = getBaseUrl(type);
+      const contentUrl = isTV
+        ? `${baseUrl}/${tmdbId}/${season}/${episode}`
+        : `${baseUrl}/${tmdbId}`;
+      const response = await axios.get(contentUrl, {
+        headers: getHeaders(type),
         decompress: true,
         timeout: 7000,
       });
-      if (response.status === 200 && response.data) {
-        const { streams, subtitles } = extractStreamAndSubtitles(t, response.data);
-        if (streams.length > 0) {
-          const html = injectPlayerVars(indexHtml, streams, subtitles, poster);
-          res.setHeader('Content-Type', 'text/html');
-          return res.status(200).send(html);
-        }
+
+      const { streams, subtitles } = extractStreamAndSubtitles(type, response.data || {});
+      if (streams.length > 0) {
+        const html = injectPlayerVars(indexHtml, streams, subtitles, poster);
+        res.setHeader('Content-Type', 'text/html');
+        return res.status(200).send(html);
       }
-    } catch (err) {
-      // Try next type
+    } catch {
+      // try next provider
     }
   }
 
   return res.status(404).send('No playable stream found.');
-};
+}
