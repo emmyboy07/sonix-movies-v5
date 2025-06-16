@@ -1,15 +1,12 @@
 {
-  "name": "comic-server-from-willow",
+  "name": "vercel-player-api",
   "version": "1.0.0",
-  "main": "api/index.js",
   "type": "module",
+  "main": "api/player.js",
   "scripts": {
-    "dev": "vercel dev",
     "start": "vercel dev"
   },
   "dependencies": {
-    "axios": "^1.6.8",
-    "cors": "^2.8.5",
-    "express": "^4.18.2"
+    "axios": "^1.6.8"
   }
 }
