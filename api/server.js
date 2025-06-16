@@ -74,6 +74,12 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
 // --- Main handler for Vercel ---
 export default async function handler(req, res) {
+  // Show a message on root "/"
+  if (req.url === '/' || req.url === '/api/server.js' || req.url === '/api/server.js/') {
+    res.status(200).send('Sonix server is running');
+    return;
+  }
+
   // Parse the path for movie or TV show
   // Movie: /all/player/:tmdbId
   // TV:    /all/player/:tmdbId/:season/:episode
