@@ -6,20 +6,6 @@
       "use": "@vercel/node"
     }
   ],
-  "routes": [
-    {
-      "src": "/player",
-      "dest": "/api/server.js"
-    },
-    {
-      "src": "/player/(.*)",
-      "dest": "/api/server.js"
-    },
-    {
-      "src": "/(.*)",
-      "dest": "/public/$1"
-    }
-  ],
   "rewrites": [
     { "source": "/all/player/:tmdbId", "destination": "/api/server.js/all/player/:tmdbId" },
     { "source": "/all/player/:tmdbId/:season/:episode", "destination": "/api/server.js/all/player/:tmdbId/:season/:episode" }
